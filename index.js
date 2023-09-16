@@ -4,8 +4,11 @@ const canvas = document.getElementById(`canvas`);
 // A graph is a collection of node objects keyed by an id. Each node contains a
 // label and a collection of edges to or from other nodes.
 let nodes = {};
+
 let width = 200;
 let height = 200;
+
+let scale = 0.015;
 
 const get_render_context = () => {
   width = window.innerWidth - 20;
@@ -66,7 +69,7 @@ const compute_heights = () => {
   }
 };
 
-const render_by_height = () => {
+const position_by_height = () => {
   let max_height = 0;
   for (const node of Object.values(nodes)) {
     if (node.height > max_height) {
@@ -85,8 +88,30 @@ const render_by_height = () => {
   const ctx = get_render_context();
   for (const [x, row] of by_height.entries()) {
     for (const [y, node] of row.entries()) {
-      ctx.fillRect(10 + x * 3, 10 + y * 3, 1, 1);
+      node.position = { x: x, y: y };
     }
+  }
+};
+
+const render_at_positions = () => {
+  const ctx = get_render_context();
+  let total_x = 0;
+  let total_y = 0;
+  for (const node of Object.values(nodes)) {
+    total_x += node.position.x;
+    total_y += node.position.y;
+  }
+  const num_nodes = Object.values(nodes).length;
+  const average_x = total_x / num_nodes;
+  const average_y = total_y / num_nodes;
+
+  const mid_x = width / 2;
+  const mid_y = height / 2;
+
+  for (const node of Object.values(nodes)) {
+    const x = node.position.x - average_x;
+    const y = node.position.y - average_y;
+    ctx.fillRect(x * scale + mid_x, y * scale + mid_y, 1, 1);
   }
 };
 
@@ -126,7 +151,8 @@ const load_current_file = () => {
       console.log(`Loaded graph. Found ${num_nodes} nodes.`);
 
       compute_heights();
-      render_by_height();
+      position_by_height();
+      render_at_positions();
 
     });
   }
