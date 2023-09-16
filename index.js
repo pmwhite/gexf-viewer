@@ -4,16 +4,25 @@ const canvas = document.getElementById(`canvas`);
 // A graph is a collection of node objects keyed by an id. Each node contains a
 // label and a collection of edges to or from other nodes.
 let nodes = {};
+let width = 200;
+let height = 200;
 
-const render = () => {
-  const width = window.innerWidth - 20;
-  const height = window.innerHeight - 100;
+const get_render_context = () => {
+  width = window.innerWidth - 20;
+  height = window.innerHeight - 100;
   canvas.width = width;
   canvas.height = height;
+
   const ctx = canvas.getContext("2d");
   ctx.fillStyle = `rgb(0, 0, 0)`;
   ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = `rgb(255, 255, 255)`;
+
+  return ctx;
+};
+
+const render_first_two_levels = () => {
+  const ctx = get_render_context();
 
   let root;
   for (const node of Object.values(nodes)) {
@@ -57,6 +66,30 @@ const compute_heights = () => {
   }
 };
 
+const render_by_height = () => {
+  let max_height = 0;
+  for (const node of Object.values(nodes)) {
+    if (node.height > max_height) {
+      max_height = node.height;
+    }
+  }
+
+  let by_height = [];
+  for (let i = 0; i < max_height + 1; i++) {
+    by_height.push([]);
+  }
+  for (const node of Object.values(nodes)) {
+    by_height[node.height].push(node);
+  }
+
+  const ctx = get_render_context();
+  for (const [x, row] of by_height.entries()) {
+    for (const [y, node] of row.entries()) {
+      ctx.fillRect(10 + x * 3, 10 + y * 3, 1, 1);
+    }
+  }
+};
+
 // [load_file] clears the current graph and re-populates it with the contents
 // of the file currently picked by the file-picker. If nothing is picked, then
 // the graph ends up empty.
@@ -93,7 +126,7 @@ const load_current_file = () => {
       console.log(`Loaded graph. Found ${num_nodes} nodes.`);
 
       compute_heights();
-      render();
+      render_by_height();
 
     });
   }
