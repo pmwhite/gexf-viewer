@@ -3,7 +3,8 @@ const canvas = document.getElementById(`canvas`);
 
 // A graph is a collection of node objects keyed by an id. Each node contains a
 // label and a collection of edges to or from other nodes.
-let nodes = {};
+let nodes_by_id = {};
+let nodes = [];
 
 let width = 200;
 let height = 200;
@@ -28,7 +29,7 @@ const render_first_two_levels = () => {
   const ctx = get_render_context();
 
   let root;
-  for (const node of Object.values(nodes)) {
+  for (const node of nodes) {
     if (!root || node.height > root.height) {
       root = node;
     }
@@ -64,14 +65,14 @@ const compute_heights = () => {
       node.height = max + 1;
     }
   };
-  for (const node of Object.values(nodes)) {
+  for (const node of nodes) {
     iter(node);
   }
 };
 
 const position_by_height = () => {
   let max_height = 0;
-  for (const node of Object.values(nodes)) {
+  for (const node of nodes) {
     if (node.height > max_height) {
       max_height = node.height;
     }
@@ -81,7 +82,7 @@ const position_by_height = () => {
   for (let i = 0; i < max_height + 1; i++) {
     by_height.push([]);
   }
-  for (const node of Object.values(nodes)) {
+  for (const node of nodes) {
     by_height[node.height].push(node);
   }
 
@@ -97,18 +98,18 @@ const render_at_positions = () => {
   const ctx = get_render_context();
   let total_x = 0;
   let total_y = 0;
-  for (const node of Object.values(nodes)) {
+  for (const node of nodes) {
     total_x += node.position.x;
     total_y += node.position.y;
   }
-  const num_nodes = Object.values(nodes).length;
+  const num_nodes = nodes.length;
   const average_x = total_x / num_nodes;
   const average_y = total_y / num_nodes;
 
   const mid_x = width / 2;
   const mid_y = height / 2;
 
-  for (const node of Object.values(nodes)) {
+  for (const node of nodes) {
     const x = node.position.x - average_x;
     const y = node.position.y - average_y;
     ctx.fillRect(x * scale + mid_x, y * scale + mid_y, 1, 1);
@@ -120,7 +121,7 @@ const render_at_positions = () => {
 // the graph ends up empty.
 const load_current_file = () => {
   const [ file ] = file_picker.files;
-  nodes = {};
+  nodes_by_id = {};
   if (file) {
     file.text().then(text => {
       let parser = new DOMParser();
@@ -136,8 +137,9 @@ const load_current_file = () => {
           label: node.getAttribute(`label`),
           outward: []
         };
-        nodes[id] = x;
+        nodes_by_id[id] = x;
       }
+      nodes = Object.values(nodes_by_id);
 
       let edge_iterator = xml.evaluate(
         `/gexf/graph/edges/edge`, xml, null, XPathResult.ANY_TYPE, null);
@@ -145,9 +147,9 @@ const load_current_file = () => {
       while ((edge = edge_iterator.iterateNext())) {
         let source = parseInt(edge.getAttribute(`source`));
         let target = parseInt(edge.getAttribute(`target`));
-        nodes[source].outward.push(nodes[target]);
+        nodes_by_id[source].outward.push(nodes_by_id[target]);
       }
-      let num_nodes = Object.keys(nodes).length;
+      let num_nodes = Object.keys(nodes_by_id).length;
       console.log(`Loaded graph. Found ${num_nodes} nodes.`);
 
       compute_heights();
