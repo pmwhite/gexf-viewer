@@ -5,11 +5,13 @@ const canvas = document.getElementById(`canvas`);
 // label and a collection of edges to or from other nodes.
 let nodes_by_id = {};
 let nodes = [];
+let sectors = [];
+let sector_size = 200;
 
 let width = 200;
 let height = 200;
 
-let scale = 0.015;
+let scale = 0.001;
 
 const get_render_context = () => {
   width = window.innerWidth - 20;
@@ -21,6 +23,7 @@ const get_render_context = () => {
   ctx.fillStyle = `rgb(0, 0, 0)`;
   ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = `rgb(255, 255, 255)`;
+  ctx.strokeStyle = `rgb(255, 255, 255)`;
 
   return ctx;
 };
@@ -70,6 +73,21 @@ const compute_heights = () => {
   }
 };
 
+const get_sector = node => {
+  const x_sector = Math.floor(node.position_x / sector_size);
+  const y_sector = Math.floor(node.position_y / sector_size);
+  return sectors[x_sector][y_sector];
+};
+
+const set_sector = node => {
+  const x_sector = Math.floor(node.position_x / sector_size);
+  const y_sector = Math.floor(node.position_y / sector_size);
+  if (!sectors[x_sector]) { sectors[x_sector] = []; }
+  if (!sectors[x_sector][y_sector]) { sectors[x_sector][y_sector] = []; }
+  sectors[x_sector][y_sector].push(node);
+};
+
+
 const position_by_height = () => {
   let max_height = 0;
   for (const node of nodes) {
@@ -89,8 +107,56 @@ const position_by_height = () => {
   const ctx = get_render_context();
   for (const [x, row] of by_height.entries()) {
     for (const [y, node] of row.entries()) {
-      node.position = { x: x, y: y };
+      node.position_x = x * 10;
+      node.position_y = y * 10;
+      set_sector(node);
     }
+  }
+};
+
+const run_simulation_frame = () => {
+  for (const node of nodes) {
+    let x_force = 0;
+    let y_force = 0;
+
+    let x = node.position_x;
+    let y = node.position_y;
+
+    for (const other of get_sector(node)) {
+      if (node !== other) {
+        let x_diff = (x - other.position_x);
+        let y_diff = (y - other.position_y);
+        if (x_diff < 1) { x_diff = 1; }
+        if (y_diff < 1) { y_diff = 1; }
+        x_force += 30 / (x_diff * x_diff);
+        y_force += 30 / (y_diff * y_diff);
+      }
+    }
+
+    for (const other of node.outward) {
+      let x_diff = (x - other.position_x);
+      let y_diff = (y - other.position_y);
+      x_force -= x_diff / 500;
+      y_force -= y_diff / 500;
+    }
+
+    for (const other of node.inward) {
+      let x_diff = (x - other.position_x);
+      let y_diff = (y - other.position_y);
+      x_force -= x_diff / 500;
+      y_force -= y_diff / 500;
+    }
+
+    node.force_x = x_force;
+    node.force_y = y_force;
+  }
+  sectors = [];
+  let i = 0;
+  for (const node of nodes) {
+    node.position_x += node.force_x;
+    node.position_y += node.force_y;
+    set_sector(node);
+    i += 1;
   }
 };
 
@@ -99,8 +165,8 @@ const render_at_positions = () => {
   let total_x = 0;
   let total_y = 0;
   for (const node of nodes) {
-    total_x += node.position.x;
-    total_y += node.position.y;
+    total_x += node.position_x;
+    total_y += node.position_y;
   }
   const num_nodes = nodes.length;
   const average_x = total_x / num_nodes;
@@ -110,9 +176,17 @@ const render_at_positions = () => {
   const mid_y = height / 2;
 
   for (const node of nodes) {
-    const x = node.position.x - average_x;
-    const y = node.position.y - average_y;
+    const x = node.position_x - average_x;
+    const y = node.position_y - average_y;
     ctx.fillRect(x * scale + mid_x, y * scale + mid_y, 1, 1);
+
+    for (const other of node.outward) {
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo((node.position_x - average_x) * scale + mid_x, (node.position_y - average_y) * scale + mid_y);
+      ctx.lineTo((other.position_x - average_x) * scale + mid_x, (other.position_y - average_y) * scale + mid_y);
+      ctx.stroke();
+    }
   }
 };
 
@@ -135,7 +209,8 @@ const load_current_file = () => {
         let x = {
           id: id,
           label: node.getAttribute(`label`),
-          outward: []
+          outward: [],
+          inward: []
         };
         nodes_by_id[id] = x;
       }
@@ -148,16 +223,22 @@ const load_current_file = () => {
         let source = parseInt(edge.getAttribute(`source`));
         let target = parseInt(edge.getAttribute(`target`));
         nodes_by_id[source].outward.push(nodes_by_id[target]);
+        nodes_by_id[target].inward.push(nodes_by_id[source]);
       }
       let num_nodes = Object.keys(nodes_by_id).length;
       console.log(`Loaded graph. Found ${num_nodes} nodes.`);
 
       compute_heights();
       position_by_height();
-      render_at_positions();
-
+      start_loop();
     });
   }
+};
+
+const start_loop = () => {
+  run_simulation_frame();
+  render_at_positions();
+  requestAnimationFrame(start_loop);
 };
 
 load_current_file();
