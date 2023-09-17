@@ -11,7 +11,7 @@ let sector_size = 200;
 let width = 200;
 let height = 200;
 
-let scale = 0.001;
+let scale = 0.003;
 
 const get_render_context = () => {
   width = window.innerWidth - 20;
@@ -23,7 +23,6 @@ const get_render_context = () => {
   ctx.fillStyle = `rgb(0, 0, 0)`;
   ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = `rgb(255, 255, 255)`;
-  ctx.strokeStyle = `rgb(255, 255, 255)`;
 
   return ctx;
 };
@@ -104,17 +103,28 @@ const position_by_height = () => {
     by_height[node.height].push(node);
   }
 
-  const ctx = get_render_context();
   for (const [x, row] of by_height.entries()) {
     for (const [y, node] of row.entries()) {
-      node.position_x = x * 10;
-      node.position_y = y * 10;
+      node.position_x = x * 10 + Math.random() * 5;
+      node.position_y = y * 10 + Math.random() * 5;
       set_sector(node);
     }
   }
 };
 
+const position_randomly = () => {
+  for (const node of nodes) {
+    node.position_x = Math.random() * 1000000;
+    node.position_y = Math.random() * 1000000;
+    set_sector(node);
+  }
+};
+
 const run_simulation_frame = () => {
+  for (const node of nodes) {
+    node.force_x = 0;
+    node.force_y = 0;
+  }
   for (const node of nodes) {
     let x_force = 0;
     let y_force = 0;
@@ -128,33 +138,36 @@ const run_simulation_frame = () => {
         let y_diff = (y - other.position_y);
         if (x_diff < 1) { x_diff = 1; }
         if (y_diff < 1) { y_diff = 1; }
-        x_force += 30 / (x_diff * x_diff);
-        y_force += 30 / (y_diff * y_diff);
+        x_force += 100 / (x_diff * x_diff);
+        y_force += 100 / (y_diff * y_diff);
       }
     }
 
     for (const other of node.outward) {
       let x_diff = (x - other.position_x);
       let y_diff = (y - other.position_y);
-      x_force -= x_diff / 500;
-      y_force -= y_diff / 500;
+      x_force -= x_diff / 200;
+      y_force -= y_diff / 200;
+
     }
 
     for (const other of node.inward) {
       let x_diff = (x - other.position_x);
       let y_diff = (y - other.position_y);
-      x_force -= x_diff / 500;
-      y_force -= y_diff / 500;
+      x_force -= x_diff / 100;
+      y_force -= y_diff / 100;
     }
 
-    node.force_x = x_force;
-    node.force_y = y_force;
+    node.force_x += x_force;
+    node.force_y += y_force;
   }
   sectors = [];
   let i = 0;
   for (const node of nodes) {
-    node.position_x += node.force_x;
-    node.position_y += node.force_y;
+    node.velocity_x += node.force_x - 0.3 * node.velocity_x;
+    node.velocity_y += node.force_y - 0.3 * node.velocity_y;
+    node.position_x += node.velocity_x;
+    node.position_y += node.velocity_y;
     set_sector(node);
     i += 1;
   }
@@ -175,19 +188,24 @@ const render_at_positions = () => {
   const mid_x = width / 2;
   const mid_y = height / 2;
 
+  ctx.strokeStyle = `rgb(100, 100, 100)`;
+  ctx.lineWidth = 1;
   for (const node of nodes) {
-    const x = node.position_x - average_x;
-    const y = node.position_y - average_y;
-    ctx.fillRect(x * scale + mid_x, y * scale + mid_y, 1, 1);
-
     for (const other of node.outward) {
-      ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo((node.position_x - average_x) * scale + mid_x, (node.position_y - average_y) * scale + mid_y);
       ctx.lineTo((other.position_x - average_x) * scale + mid_x, (other.position_y - average_y) * scale + mid_y);
       ctx.stroke();
     }
   }
+
+  ctx.strokeStyle = `rgb(255, 255, 255)`;
+  for (const node of nodes) {
+    const x = node.position_x - average_x;
+    const y = node.position_y - average_y;
+    ctx.fillRect(x * scale + mid_x, y * scale + mid_y, 1, 1);
+  }
+
 };
 
 // [load_file] clears the current graph and re-populates it with the contents
@@ -210,7 +228,9 @@ const load_current_file = () => {
           id: id,
           label: node.getAttribute(`label`),
           outward: [],
-          inward: []
+          inward: [],
+          velocity_x: 0,
+          velocity_y: 0
         };
         nodes_by_id[id] = x;
       }
@@ -229,13 +249,15 @@ const load_current_file = () => {
       console.log(`Loaded graph. Found ${num_nodes} nodes.`);
 
       compute_heights();
-      position_by_height();
+      position_randomly();
       start_loop();
     });
   }
 };
 
 const start_loop = () => {
+  run_simulation_frame();
+  run_simulation_frame();
   run_simulation_frame();
   render_at_positions();
   requestAnimationFrame(start_loop);
