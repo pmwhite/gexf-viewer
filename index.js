@@ -120,10 +120,23 @@ const position_randomly = () => {
   }
 };
 
-const run_simulation_frame = () => {
+const average = () => {
+  let total_x = 0;
+  let total_y = 0;
   for (const node of nodes) {
-    node.force_x = 0;
-    node.force_y = 0;
+    total_x += node.position_x;
+    total_y += node.position_y;
+  }
+  const num_nodes = nodes.length;
+  return [ total_x / num_nodes, total_y / num_nodes ];
+};
+
+const run_simulation_frame = () => {
+  const [ average_x, average_y ] = average();
+
+  for (const node of nodes) {
+    node.force_x = (average_x - node.position_x) / 1000;
+    node.force_y = (average_y - node.position_y) / 1000;
   }
   for (const node of nodes) {
     let x_force = 0;
@@ -175,15 +188,7 @@ const run_simulation_frame = () => {
 
 const render_at_positions = () => {
   const ctx = get_render_context();
-  let total_x = 0;
-  let total_y = 0;
-  for (const node of nodes) {
-    total_x += node.position_x;
-    total_y += node.position_y;
-  }
-  const num_nodes = nodes.length;
-  const average_x = total_x / num_nodes;
-  const average_y = total_y / num_nodes;
+  const [ average_x, average_y ] = average();
 
   const mid_x = width / 2;
   const mid_y = height / 2;
