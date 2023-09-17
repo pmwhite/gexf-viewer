@@ -73,14 +73,14 @@ const compute_heights = () => {
 };
 
 const get_sector = node => {
-  const x_sector = Math.floor(node.position_x / sector_size);
-  const y_sector = Math.floor(node.position_y / sector_size);
+  const x_sector = Math.floor(node.position.x / sector_size);
+  const y_sector = Math.floor(node.position.y / sector_size);
   return sectors[x_sector][y_sector];
 };
 
 const set_sector = node => {
-  const x_sector = Math.floor(node.position_x / sector_size);
-  const y_sector = Math.floor(node.position_y / sector_size);
+  const x_sector = Math.floor(node.position.x / sector_size);
+  const y_sector = Math.floor(node.position.y / sector_size);
   if (!sectors[x_sector]) { sectors[x_sector] = []; }
   if (!sectors[x_sector][y_sector]) { sectors[x_sector][y_sector] = []; }
   sectors[x_sector][y_sector].push(node);
@@ -105,8 +105,8 @@ const position_by_height = () => {
 
   for (const [x, row] of by_height.entries()) {
     for (const [y, node] of row.entries()) {
-      node.position_x = x * 10 + Math.random() * 5;
-      node.position_y = y * 10 + Math.random() * 5;
+      node.position.x = x * 10 + Math.random() * 5;
+      node.position.y = y * 10 + Math.random() * 5;
       set_sector(node);
     }
   }
@@ -114,8 +114,8 @@ const position_by_height = () => {
 
 const position_randomly = () => {
   for (const node of nodes) {
-    node.position_x = Math.random() * 1000000;
-    node.position_y = Math.random() * 1000000;
+    node.position.x = Math.random() * 1000000;
+    node.position.y = Math.random() * 1000000;
     set_sector(node);
   }
 };
@@ -124,8 +124,8 @@ const average = () => {
   let total_x = 0;
   let total_y = 0;
   for (const node of nodes) {
-    total_x += node.position_x;
-    total_y += node.position_y;
+    total_x += node.position.x;
+    total_y += node.position.y;
   }
   const num_nodes = nodes.length;
   return [ total_x / num_nodes, total_y / num_nodes ];
@@ -135,20 +135,20 @@ const run_simulation_frame = () => {
   const [ average_x, average_y ] = average();
 
   for (const node of nodes) {
-    node.force_x = (average_x - node.position_x) / 1000;
-    node.force_y = (average_y - node.position_y) / 1000;
+    node.force_x = (average_x - node.position.x) / 1000;
+    node.force_y = (average_y - node.position.y) / 1000;
   }
   for (const node of nodes) {
     let x_force = 0;
     let y_force = 0;
 
-    let x = node.position_x;
-    let y = node.position_y;
+    let x = node.position.x;
+    let y = node.position.y;
 
     for (const other of get_sector(node)) {
       if (node !== other) {
-        let x_diff = (x - other.position_x);
-        let y_diff = (y - other.position_y);
+        let x_diff = (x - other.position.x);
+        let y_diff = (y - other.position.y);
         if (x_diff < 1) { x_diff = 1; }
         if (y_diff < 1) { y_diff = 1; }
         x_force += 100 / (x_diff * x_diff);
@@ -157,16 +157,16 @@ const run_simulation_frame = () => {
     }
 
     for (const other of node.outward) {
-      let x_diff = (x - other.position_x);
-      let y_diff = (y - other.position_y);
+      let x_diff = (x - other.position.x);
+      let y_diff = (y - other.position.y);
       x_force -= x_diff / 200;
       y_force -= y_diff / 200;
 
     }
 
     for (const other of node.inward) {
-      let x_diff = (x - other.position_x);
-      let y_diff = (y - other.position_y);
+      let x_diff = (x - other.position.x);
+      let y_diff = (y - other.position.y);
       x_force -= x_diff / 100;
       y_force -= y_diff / 100;
     }
@@ -179,8 +179,8 @@ const run_simulation_frame = () => {
   for (const node of nodes) {
     node.velocity_x += node.force_x - 0.3 * node.velocity_x;
     node.velocity_y += node.force_y - 0.3 * node.velocity_y;
-    node.position_x += node.velocity_x;
-    node.position_y += node.velocity_y;
+    node.position.x += node.velocity_x;
+    node.position.y += node.velocity_y;
     set_sector(node);
     i += 1;
   }
@@ -198,16 +198,16 @@ const render_at_positions = () => {
   for (const node of nodes) {
     for (const other of node.outward) {
       ctx.beginPath();
-      ctx.moveTo((node.position_x - average_x) * scale + mid_x, (node.position_y - average_y) * scale + mid_y);
-      ctx.lineTo((other.position_x - average_x) * scale + mid_x, (other.position_y - average_y) * scale + mid_y);
+      ctx.moveTo((node.position.x - average_x) * scale + mid_x, (node.position_y - average_y) * scale + mid_y);
+      ctx.lineTo((other.position.x - average_x) * scale + mid_x, (other.position_y - average_y) * scale + mid_y);
       ctx.stroke();
     }
   }
 
   ctx.strokeStyle = `rgb(255, 255, 255)`;
   for (const node of nodes) {
-    const x = node.position_x - average_x;
-    const y = node.position_y - average_y;
+    const x = node.position.x - average_x;
+    const y = node.position.y - average_y;
     ctx.fillRect(x * scale + mid_x, y * scale + mid_y, 1, 1);
   }
 
@@ -235,7 +235,8 @@ const load_current_file = () => {
           outward: [],
           inward: [],
           velocity_x: 0,
-          velocity_y: 0
+          velocity_y: 0,
+          position: { x: 0, y: 0 }
         };
         nodes_by_id[id] = x;
       }
