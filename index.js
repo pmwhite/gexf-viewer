@@ -152,40 +152,30 @@ const run_simulation_frame = () => {
     node.force = vdiv(vsub(average, node.position), 1000);
   }
   for (const node of nodes) {
-    let x_force = 0;
-    let y_force = 0;
-
-    let x = node.position.x;
-    let y = node.position.y;
+    let force = { x: 0, y: 0 };
+    const pos = node.position;
 
     for (const other of get_sector(node)) {
       if (node !== other) {
-        let x_diff = (x - other.position.x);
-        let y_diff = (y - other.position.y);
-        if (x_diff < 1) { x_diff = 1; }
-        if (y_diff < 1) { y_diff = 1; }
-        x_force += 100 / (x_diff * x_diff);
-        y_force += 100 / (y_diff * y_diff);
+        let diff = vsub(pos, other.position);
+        if (diff.x < 1) { diff.x = 1; }
+        if (diff.y < 1) { diff.y = 1; }
+        force.x += 100 / (diff.x * diff.x);
+        force.y += 100 / (diff.y * diff.y);
       }
     }
 
     for (const other of node.outward) {
-      let x_diff = (x - other.position.x);
-      let y_diff = (y - other.position.y);
-      x_force -= x_diff / 200;
-      y_force -= y_diff / 200;
-
+      let diff = vsub(pos, other.position);
+      force = vsub(force, vdiv(diff, 200));
     }
 
     for (const other of node.inward) {
-      let x_diff = (x - other.position.x);
-      let y_diff = (y - other.position.y);
-      x_force -= x_diff / 100;
-      y_force -= y_diff / 100;
+      let diff = vsub(pos, other.position);
+      force = vsub(force, vdiv(diff, 200));
     }
 
-    node.force.x += x_force;
-    node.force.y += y_force;
+    node.force = vadd(node.force, force);
   }
   sectors = [];
   let i = 0;
