@@ -1,3 +1,19 @@
+const vadd = (a, b) => {
+  return { x: a.x + b.x, y: a.y + b.y };
+};
+
+const vsub = (a, b) => {
+  return { x: a.x - b.x, y: a.y - b.y };
+};
+
+const vdiv = (a, b) => {
+  return { x: a.x / b, y: a.y / b };
+};
+
+const vmul = (a, b) => {
+  return { x: a.x * b, y: a.y * b };
+};
+
 const file_picker = document.getElementById(`file-picker`);
 const canvas = document.getElementById(`canvas`);
 
@@ -120,23 +136,20 @@ const position_randomly = () => {
   }
 };
 
-const average = () => {
-  let total_x = 0;
-  let total_y = 0;
+const average_position = () => {
+  let total = { x: 0, y: 0 };
   for (const node of nodes) {
-    total_x += node.position.x;
-    total_y += node.position.y;
+    total = vadd(total, node.position);
   }
   const num_nodes = nodes.length;
-  return [ total_x / num_nodes, total_y / num_nodes ];
+  return vdiv(total, num_nodes);
 };
 
 const run_simulation_frame = () => {
-  const [ average_x, average_y ] = average();
+  const average = average_position();
 
   for (const node of nodes) {
-    node.force_x = (average_x - node.position.x) / 1000;
-    node.force_y = (average_y - node.position.y) / 1000;
+    node.force = vdiv(vsub(average, node.position), 1000);
   }
   for (const node of nodes) {
     let x_force = 0;
@@ -171,16 +184,14 @@ const run_simulation_frame = () => {
       y_force -= y_diff / 100;
     }
 
-    node.force_x += x_force;
-    node.force_y += y_force;
+    node.force.x += x_force;
+    node.force.y += y_force;
   }
   sectors = [];
   let i = 0;
   for (const node of nodes) {
-    node.velocity_x += node.force_x - 0.3 * node.velocity_x;
-    node.velocity_y += node.force_y - 0.3 * node.velocity_y;
-    node.position.x += node.velocity_x;
-    node.position.y += node.velocity_y;
+    node.velocity = vadd(node.velocity, vsub(node.force, vmul(node.velocity, 0.3)));
+    node.position = vadd(node.position, node.velocity);
     set_sector(node);
     i += 1;
   }
@@ -188,7 +199,7 @@ const run_simulation_frame = () => {
 
 const render_at_positions = () => {
   const ctx = get_render_context();
-  const [ average_x, average_y ] = average();
+  const average = average_position();
 
   const mid_x = width / 2;
   const mid_y = height / 2;
@@ -198,16 +209,16 @@ const render_at_positions = () => {
   for (const node of nodes) {
     for (const other of node.outward) {
       ctx.beginPath();
-      ctx.moveTo((node.position.x - average_x) * scale + mid_x, (node.position_y - average_y) * scale + mid_y);
-      ctx.lineTo((other.position.x - average_x) * scale + mid_x, (other.position_y - average_y) * scale + mid_y);
+      ctx.moveTo((node.position.x - average.x) * scale + mid_x, (node.position_y - average.y) * scale + mid_y);
+      ctx.lineTo((other.position.x - average.x) * scale + mid_x, (other.position_y - average.y) * scale + mid_y);
       ctx.stroke();
     }
   }
 
   ctx.strokeStyle = `rgb(255, 255, 255)`;
   for (const node of nodes) {
-    const x = node.position.x - average_x;
-    const y = node.position.y - average_y;
+    const x = node.position.x - average.x;
+    const y = node.position.y - average.y;
     ctx.fillRect(x * scale + mid_x, y * scale + mid_y, 1, 1);
   }
 
@@ -234,9 +245,9 @@ const load_current_file = () => {
           label: node.getAttribute(`label`),
           outward: [],
           inward: [],
-          velocity_x: 0,
-          velocity_y: 0,
-          position: { x: 0, y: 0 }
+          position: { x: 0, y: 0 },
+          force: { x: 0, y: 0 },
+          velocity: { x: 0, y: 0 }
         };
         nodes_by_id[id] = x;
       }
