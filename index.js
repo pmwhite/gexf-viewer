@@ -31,7 +31,8 @@ let sector_size = 100;
 let width = 200;
 let height = 200;
 
-let scale = 1;
+let zoom = 1;
+let pan = { x: 0.5, y: 0.5 };
 
 const get_render_context = () => {
   width = window.innerWidth - 20;
@@ -237,21 +238,26 @@ const render_at_positions = () => {
   const mid_x = width / 2;
   const mid_y = height / 2;
 
+  const pan_x = width * (zoom - 1) * pan.x;
+  const pan_y = height * (zoom - 1) * pan.y;
+  console.log(pan_x, pan_y);
+
+  const x_adjust = x => (x - average.x) * scale_x * zoom + mid_x;
+  const y_adjust = y => (y - average.y) * scale_y * zoom + mid_y;
+
   ctx.strokeStyle = `rgb(100, 100, 100)`;
   ctx.lineWidth = 1;
   for (const node of nodes) {
     for (const other of node.outward) {
       ctx.beginPath();
-      ctx.moveTo((node.position.x - average.x) * scale_x + mid_x, (node.position.y - average.y) * scale_y + mid_y);
-      ctx.lineTo((other.position.x - average.x) * scale_x + mid_x, (other.position.y - average.y) * scale_y + mid_y);
+      ctx.moveTo(x_adjust(node.position.x), y_adjust(node.position.y));
+      ctx.lineTo(x_adjust(other.position.x), y_adjust(other.position.y));
       ctx.stroke();
     }
   }
 
   for (const node of nodes) {
-    const x = node.position.x - average.x;
-    const y = node.position.y - average.y;
-    ctx.fillRect(x * scale_x + mid_x, y * scale_y + mid_y, 1, 1);
+    ctx.fillRect(x_adjust(node.position.x), y_adjust(node.position.y), 1, 1);
   }
 
 };
@@ -312,3 +318,9 @@ const start_loop = () => {
 
 load_current_file();
 file_picker.addEventListener(`change`, load_current_file);
+
+window.addEventListener(`wheel`, ev => {
+  console.log(`hello`);
+  zoom -= 0.001 * ev.deltaY;
+  if (zoom < 0.8) { zoom = 0.8; }
+});
