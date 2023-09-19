@@ -19,6 +19,8 @@ const vlen = a => {
 };
 
 const file_picker = document.getElementById(`file-picker`);
+const start_simulation_button = document.getElementById(`start-simulation-button`);
+const stop_simulation_button = document.getElementById(`stop-simulation-button`);
 const canvas = document.getElementById(`canvas`);
 
 // A graph is a collection of node objects keyed by an id. Each node contains a
@@ -31,8 +33,9 @@ let sector_size = 100;
 let width = 200;
 let height = 200;
 
-let zoom = 1;
-let pan = { x: 0.5, y: 0.5 };
+let zoom = { x: 1, y: 1 };
+let pan = { x: 0, y: 0 };
+let mouse_pos = { x: 0.5, y: 0.5 };
 
 const get_render_context = () => {
   width = window.innerWidth - 20;
@@ -238,12 +241,8 @@ const render_at_positions = () => {
   const mid_x = width / 2;
   const mid_y = height / 2;
 
-  const pan_x = width * (zoom - 1) * pan.x;
-  const pan_y = height * (zoom - 1) * pan.y;
-  console.log(pan_x, pan_y);
-
-  const x_adjust = x => (x - average.x) * scale_x * zoom + mid_x;
-  const y_adjust = y => (y - average.y) * scale_y * zoom + mid_y;
+  const x_adjust = x => (x - average.x) * scale_x * zoom.x + mid_x + pan.x;
+  const y_adjust = y => (y - average.y) * scale_y * zoom.y + mid_y + pan.y;
 
   ctx.strokeStyle = `rgb(100, 100, 100)`;
   ctx.lineWidth = 1;
@@ -310,8 +309,11 @@ const load_current_file = () => {
   }
 };
 
+let simulation_running = false;
 const start_loop = () => {
-  run_simulation_frame();
+  if (simulation_running) {
+    run_simulation_frame();
+  }
   render_at_positions();
   requestAnimationFrame(start_loop);
 };
@@ -320,7 +322,34 @@ load_current_file();
 file_picker.addEventListener(`change`, load_current_file);
 
 window.addEventListener(`wheel`, ev => {
-  console.log(`hello`);
-  zoom -= 0.001 * ev.deltaY;
-  if (zoom < 0.8) { zoom = 0.8; }
+  const x_delta = 0.001 * ev.deltaX;
+  zoom.x *= 1 + x_delta;
+  if (zoom.x < 1) { zoom.x = 1; }
+  pan.x *= 1 + x_delta;
+  pan.x -= (mouse_pos.x - width / 2) * x_delta;
+  const max_pan_x = (zoom.x - 1) * (width / 2);
+  if (pan.x > max_pan_x) pan.x = max_pan_x;
+  if (pan.x < -max_pan_x) pan.x = -max_pan_x;
+
+  const y_delta = 0.001 * ev.deltaY;
+  zoom.y *= 1 + y_delta;
+  if (zoom.y < 1) { zoom.y = 1; }
+  pan.y *= 1 + y_delta;
+  pan.y -= (mouse_pos.y - height / 2) * y_delta;
+  const max_pan_y = (zoom.y - 1) * (height / 2);
+  if (pan.y > max_pan_y) pan.y = max_pan_y;
+  if (pan.y < -max_pan_y) pan.y = -max_pan_y;
+  console.log(pan);
+});
+
+start_simulation_button.addEventListener(`click`, () => {
+  simulation_running = true;
+});
+
+stop_simulation_button.addEventListener(`click`, () => {
+  simulation_running = false;
+});
+
+canvas.addEventListener(`mousemove`, ev => {
+  mouse_pos = { x: ev.offsetX, y: ev.offsetY };
 });
