@@ -342,6 +342,19 @@ window.addEventListener(`wheel`, ev => {
   console.log(pan);
 });
 
+window.addEventListener(`keydown`, ev => {
+  if (ev.keyCode === 40) {
+    pan.y -= 4;
+  } else if (ev.keyCode === 39) {
+    pan.x -= 4;
+  } else if (ev.keyCode === 38) {
+    pan.y += 4;
+  } else if (ev.keyCode === 37) {
+    pan.x += 4;
+  }
+
+});
+
 start_simulation_button.addEventListener(`click`, () => {
   simulation_running = true;
 });
