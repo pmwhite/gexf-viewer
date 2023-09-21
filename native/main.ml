@@ -4,8 +4,8 @@ type nodes =
   { ids : (int, unit) Hashtbl.t
   ; max_id : int
   ; height : int array
-  ; pos_x : int array
-  ; pos_y : int array
+  ; pos_x : float array
+  ; pos_y : float array
   ; inward : int list array
   ; outward : int list array
   ; visited : bool array
@@ -90,8 +90,8 @@ let process_nodes xml : nodes =
   { ids
   ; max_id
   ; height = Array.make len 0
-  ; pos_x = Array.make len 0
-  ; pos_y = Array.make len 0
+  ; pos_x = Array.make len 0.0
+  ; pos_y = Array.make len 0.0
   ; inward = Array.make len []
   ; outward = Array.make len []
   ; visited = Array.make len false
@@ -147,6 +147,28 @@ let compute_heights (nodes : nodes) =
   Array.fill nodes.visited 0 (Array.length nodes.visited) false
 ;;
 
+let position_near_parent (nodes : nodes) =
+  let rec iter node scale =
+    List.iteri
+      (fun i child ->
+        if not nodes.visited.(child)
+        then (
+          nodes.visited.(child) <- true;
+          nodes.pos_x.(child) <- nodes.pos_x.(node) +. (Int.to_float i *. scale);
+          nodes.pos_y.(child) <- nodes.pos_y.(node) +. 1000.0;
+          iter node (scale /. 2.0)))
+      nodes.outward.(node)
+  in
+  Seq.iter
+    (fun node ->
+      if not nodes.visited.(node)
+      then (
+        nodes.visited.(node) <- true;
+        iter node 10000.0))
+    (Hashtbl.to_seq_keys nodes.ids);
+  Array.fill nodes.visited 0 (Array.length nodes.visited) false
+;;
+
 let () =
   let args = Sys.argv in
   if Array.length args <> 2
@@ -164,5 +186,6 @@ let () =
     open_tag xml "edges";
     let _edges = process_edges xml nodes in
     compute_heights nodes;
+    position_near_parent nodes;
     ())
 ;;
