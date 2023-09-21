@@ -1,8 +1,7 @@
 [@@@warning "-69-34"]
 
 type nodes =
-  { ids : (int, unit) Hashtbl.t
-  ; max_id : int
+  { indices : (int, int) Hashtbl.t
   ; height : int array
   ; pos_x : float array
   ; pos_y : float array
@@ -55,13 +54,13 @@ let find_int_attribute xml attributes name =
 ;;
 
 let process_nodes xml : nodes =
-  let ids : (int, unit) Hashtbl.t = Hashtbl.create 1000000 in
-  let rec iter () =
+  let indices : (int, int) Hashtbl.t = Hashtbl.create 1000000 in
+  let rec iter index =
     let continue =
       match Xmlm.input xml with
       | `El_start ((_, "node"), attributes) ->
         let id = find_int_attribute xml attributes "id" in
-        Hashtbl.add ids id ();
+        Hashtbl.add indices id index;
         true
       | `El_end -> false
       | _ -> parse_error xml "expected start of <node> element or end of <nodes> element"
@@ -73,22 +72,12 @@ let process_nodes xml : nodes =
         | `El_end -> ()
         | _ -> parse_error xml "expected end of <node> element"
       in
-      iter ())
+      iter (index + 1))
+    else index
   in
-  iter ();
-  Printf.printf "Found %d nodes\n" (Hashtbl.length ids);
-  let keys = Hashtbl.to_seq_keys ids in
-  let max_id =
-    let first_key =
-      match Seq.uncons keys with
-      | Some (key, _) -> key
-      | None -> parse_error xml "expected the list of nodes to be non-empty"
-    in
-    Seq.fold_left Int.max first_key keys
-  in
-  let len = max_id + 1 in
-  { ids
-  ; max_id
+  let len = iter 0 in
+  Printf.printf "Found %d nodes\n" len;
+  { indices
   ; height = Array.make len 0
   ; pos_x = Array.make len 0.0
   ; pos_y = Array.make len 0.0
@@ -105,8 +94,12 @@ let process_edges xml (nodes : nodes) : edges =
     let continue =
       match Xmlm.input xml with
       | `El_start ((_, "edge"), attributes) ->
-        let source = find_int_attribute xml attributes "source" in
-        let target = find_int_attribute xml attributes "target" in
+        let source =
+          find_int_attribute xml attributes "source" |> Hashtbl.find nodes.indices
+        in
+        let target =
+          find_int_attribute xml attributes "target" |> Hashtbl.find nodes.indices
+        in
         from := source :: !from;
         to_ := target :: !to_;
         nodes.outward.(source) <- target :: nodes.outward.(source);
@@ -143,7 +136,7 @@ let compute_heights (nodes : nodes) =
           if nodes.height.(other) > !max then max := nodes.height.(other))
         nodes.outward.(node))
   in
-  Seq.iter iter (Hashtbl.to_seq_keys nodes.ids);
+  Array.iteri (fun i _ -> iter i) nodes.height;
   Array.fill nodes.visited 0 (Array.length nodes.visited) false
 ;;
 
@@ -159,13 +152,13 @@ let position_near_parent (nodes : nodes) =
           iter node (scale /. 2.0)))
       nodes.outward.(node)
   in
-  Seq.iter
-    (fun node ->
+  Array.iteri
+    (fun node _ ->
       if not nodes.visited.(node)
       then (
         nodes.visited.(node) <- true;
         iter node 10000.0))
-    (Hashtbl.to_seq_keys nodes.ids);
+    nodes.pos_x;
   Array.fill nodes.visited 0 (Array.length nodes.visited) false
 ;;
 
