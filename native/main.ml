@@ -5,6 +5,10 @@ type nodes =
   ; height : int array
   ; pos_x : float array
   ; pos_y : float array
+  ; vel_x : float array
+  ; vel_y : float array
+  ; force_x : float array
+  ; force_y : float array
   ; inward : int list array
   ; outward : int list array
   ; visited : bool array
@@ -81,10 +85,20 @@ let process_nodes xml : nodes =
   ; height = Array.make len 0
   ; pos_x = Array.make len 0.0
   ; pos_y = Array.make len 0.0
+  ; vel_x = Array.make len 0.0
+  ; vel_y = Array.make len 0.0
+  ; force_x = Array.make len 0.0
+  ; force_y = Array.make len 0.0
   ; inward = Array.make len []
   ; outward = Array.make len []
   ; visited = Array.make len false
   }
+;;
+
+let iter_nodes nodes ~f =
+  for i = 0 to Array.length nodes.visited - 1 do
+    f i
+  done
 ;;
 
 let process_edges xml (nodes : nodes) : edges =
@@ -136,7 +150,7 @@ let compute_heights (nodes : nodes) =
           if nodes.height.(other) > !max then max := nodes.height.(other))
         nodes.outward.(node))
   in
-  Array.iteri (fun i _ -> iter i) nodes.height;
+  iter_nodes nodes ~f:iter;
   Array.fill nodes.visited 0 (Array.length nodes.visited) false
 ;;
 
@@ -152,14 +166,48 @@ let position_near_parent (nodes : nodes) =
           iter node (scale /. 2.0)))
       nodes.outward.(node)
   in
-  Array.iteri
-    (fun node _ ->
-      if not nodes.visited.(node)
-      then (
-        nodes.visited.(node) <- true;
-        iter node 10000.0))
-    nodes.pos_x;
+  iter_nodes nodes ~f:(fun node ->
+    if not nodes.visited.(node)
+    then (
+      nodes.visited.(node) <- true;
+      iter node 10000.0));
   Array.fill nodes.visited 0 (Array.length nodes.visited) false
+;;
+
+let run_simulation_frame (nodes : nodes) =
+  let num_nodes = Array.length nodes.pos_x in
+  let denominator = Int.to_float num_nodes in
+  let average_x = Array.fold_left ( +. ) 0.0 nodes.pos_x /. denominator in
+  let average_y = Array.fold_left ( +. ) 0.0 nodes.pos_y /. denominator in
+  iter_nodes nodes ~f:(fun node ->
+    (* Pull toward height level *)
+    let force_x = 0.0 in
+    let force_y =
+      ((Int.to_float nodes.height.(node) *. 100.0) -. nodes.pos_y.(node)) /. 100.0
+    in
+    (* Pull toward center *)
+    let force_x = force_x +. ((nodes.pos_x.(node) -. average_x) /. -5000.0) in
+    let force_y = force_y +. ((nodes.pos_y.(node) -. average_y) /. -5000.0) in
+    (* Edge spring forces *)
+    let rec iter force_x force_y others =
+      match others with
+      | other :: others ->
+        let diff_x = nodes.pos_x.(node) -. nodes.pos_x.(other) in
+        let diff_y = nodes.pos_y.(node) -. nodes.pos_y.(other) in
+        let diff_len = Float.sqrt ((diff_x *. diff_x) +. (diff_y *. diff_y)) in
+        let scale = (diff_len -. 100.0) /. diff_len /. 4000.0 in
+        let force_x = force_x +. (diff_x *. scale) in
+        let force_y = force_y +. (diff_y *. scale) in
+        iter force_x force_y others
+      | [] -> force_x, force_y
+    in
+    let force_x, force_y = iter force_x force_y nodes.outward.(node) in
+    let force_x, force_y = iter force_x force_y nodes.inward.(node) in
+    (* Save forces for later. *)
+    nodes.force_x.(node) <- force_x;
+    nodes.force_y.(node) <- force_y;
+    ());
+  ()
 ;;
 
 let () =
@@ -180,5 +228,8 @@ let () =
     let _edges = process_edges xml nodes in
     compute_heights nodes;
     position_near_parent nodes;
+    for _ = 0 to 1000 do
+      run_simulation_frame nodes
+    done;
     ())
 ;;
