@@ -229,10 +229,10 @@ const render_at_positions = () => {
   let min_y = 1000000;
   let max_y = -1000000;
   for (const node of nodes) {
-    if (node.position.x < min_x) { min_x = node.position.x; }
-    if (node.position.x > max_x) { max_x = node.position.x; }
-    if (node.position.y < min_y) { min_y = node.position.y; }
-    if (node.position.y > max_y) { max_y = node.position.y; }
+    if (node.x < min_x) { min_x = node.x; }
+    if (node.x > max_x) { max_x = node.x; }
+    if (node.y < min_y) { min_y = node.y; }
+    if (node.y > max_y) { max_y = node.y; }
   }
   const average = { x: min_x + (max_x - min_x) / 2, y: min_y + (max_y - min_y) / 2 };
   const scale_x = width / (max_x - min_x);
@@ -246,17 +246,17 @@ const render_at_positions = () => {
 
   ctx.strokeStyle = `rgb(100, 100, 100)`;
   ctx.lineWidth = 1;
-  for (const node of nodes) {
-    for (const other of node.outward) {
-      ctx.beginPath();
-      ctx.moveTo(x_adjust(node.position.x), y_adjust(node.position.y));
-      ctx.lineTo(x_adjust(other.position.x), y_adjust(other.position.y));
-      ctx.stroke();
-    }
+  for (const edge of edges) {
+    let node = nodes[edge.source];
+    let other = nodes[edge.target];
+    ctx.beginPath();
+    ctx.moveTo(x_adjust(node.x), y_adjust(node.y));
+    ctx.lineTo(x_adjust(other.x), y_adjust(other.y));
+    ctx.stroke();
   }
 
   for (const node of nodes) {
-    ctx.fillRect(x_adjust(node.position.x), y_adjust(node.position.y), 1, 1);
+    ctx.fillRect(x_adjust(node.x), y_adjust(node.y), 1, 1);
   }
 
 };
@@ -269,41 +269,17 @@ const load_current_file = () => {
   nodes_by_id = {};
   if (file) {
     file.text().then(text => {
+      let o = JSON.parse(text);
+      nodes = o.nodes;
+      edges = o.edges;
       let parser = new DOMParser();
       let xml = parser.parseFromString(text, `application/xml`);
 
-      let node_iterator = xml.evaluate(
-        `/gexf/graph/nodes/node`, xml, null, XPathResult.ANY_TYPE, null);
-      let node;
-      while ((node = node_iterator.iterateNext())) {
-        let id = parseInt(node.getAttribute(`id`));
-        let x = {
-          id: id,
-          label: node.getAttribute(`label`),
-          outward: [],
-          inward: [],
-          position: { x: 0, y: 0 },
-          force: { x: 0, y: 0 },
-          velocity: { x: 0, y: 0 }
-        };
-        nodes_by_id[id] = x;
-      }
-      nodes = Object.values(nodes_by_id);
-
-      let edge_iterator = xml.evaluate(
-        `/gexf/graph/edges/edge`, xml, null, XPathResult.ANY_TYPE, null);
-      let edge;
-      while ((edge = edge_iterator.iterateNext())) {
-        let source = parseInt(edge.getAttribute(`source`));
-        let target = parseInt(edge.getAttribute(`target`));
-        nodes_by_id[source].outward.push(nodes_by_id[target]);
-        nodes_by_id[target].inward.push(nodes_by_id[source]);
-      }
-      let num_nodes = Object.keys(nodes_by_id).length;
+      let num_nodes = nodes.length;
       console.log(`Loaded graph. Found ${num_nodes} nodes.`);
 
-      compute_heights();
-      position_near_parent();
+      //compute_heights();
+      //position_near_parent();
       start_loop();
     });
   }
@@ -311,9 +287,9 @@ const load_current_file = () => {
 
 let simulation_running = false;
 const start_loop = () => {
-  if (simulation_running) {
-    run_simulation_frame();
-  }
+  //if (simulation_running) {
+  //  run_simulation_frame();
+  //}
   render_at_positions();
   requestAnimationFrame(start_loop);
 };
@@ -340,6 +316,8 @@ window.addEventListener(`wheel`, ev => {
   if (pan.y > max_pan_y) pan.y = max_pan_y;
   if (pan.y < -max_pan_y) pan.y = -max_pan_y;
   console.log(pan);
+
+  ev.preventDefault();
 });
 
 window.addEventListener(`keydown`, ev => {

@@ -148,7 +148,8 @@ let compute_heights (nodes : nodes) =
         (fun other ->
           iter other;
           if nodes.height.(other) > !max then max := nodes.height.(other))
-        nodes.outward.(node))
+        nodes.outward.(node);
+      nodes.height.(node) <- !max + 1)
   in
   iter_nodes nodes ~f:iter;
   Array.fill nodes.visited 0 (Array.length nodes.visited) false
@@ -166,19 +167,37 @@ let position_near_parent (nodes : nodes) =
           iter node (scale /. 2.0)))
       nodes.outward.(node)
   in
-  iter_nodes nodes ~f:(fun node ->
-    if not nodes.visited.(node)
-    then (
-      nodes.visited.(node) <- true;
-      iter node 10000.0));
+  let node_indices =
+    List.init (Array.length nodes.height) (fun i -> i)
+    |> List.sort (fun a b -> nodes.height.(b) - nodes.height.(a))
+  in
+  List.iter
+    (fun node ->
+      if not nodes.visited.(node)
+      then (
+        nodes.visited.(node) <- true;
+        iter node 10000.0))
+    node_indices;
   Array.fill nodes.visited 0 (Array.length nodes.visited) false
 ;;
+
+(*
+   let get_sector nodes node =
+   let x = Int.of_float nodes.pos_x.(node) / 200 in
+   let y = Int.of_float nodes.pos_y.(node) / 200 in
+   x, y
+   ;;
+*)
 
 let run_simulation_frame (nodes : nodes) =
   let num_nodes = Array.length nodes.pos_x in
   let denominator = Int.to_float num_nodes in
   let average_x = Array.fold_left ( +. ) 0.0 nodes.pos_x /. denominator in
   let average_y = Array.fold_left ( +. ) 0.0 nodes.pos_y /. denominator in
+  (*
+     let sectors : (int * int, int) Hashtbl.t = Hashtbl.create 1000 in
+     iter_nodes nodes ~f:(fun node -> Hashtbl.add sectors (get_sector nodes node) node);
+  *)
   iter_nodes nodes ~f:(fun node ->
     (* Pull toward height level *)
     let force_x = 0.0 in
@@ -195,31 +214,69 @@ let run_simulation_frame (nodes : nodes) =
         let diff_x = nodes.pos_x.(node) -. nodes.pos_x.(other) in
         let diff_y = nodes.pos_y.(node) -. nodes.pos_y.(other) in
         let diff_len = Float.sqrt ((diff_x *. diff_x) +. (diff_y *. diff_y)) in
-        let scale = (diff_len -. 100.0) /. diff_len /. 4000.0 in
-        let force_x = force_x +. (diff_x *. scale) in
-        let force_y = force_y +. (diff_y *. scale) in
+        let diff_len = if diff_len < 1.0 then 1.0 else diff_len in
+        let scale = (diff_len -. 100.0) /. diff_len /. 400.0 in
+        let force_x = force_x -. (diff_x *. scale) in
+        let force_y = force_y -. (diff_y *. scale) in
         iter force_x force_y others
       | [] -> force_x, force_y
     in
     let force_x, force_y = iter force_x force_y nodes.outward.(node) in
     let force_x, force_y = iter force_x force_y nodes.inward.(node) in
+    (* Repulsion from local nodes. *)
+    (*
+       let rec iter i force_x force_y others =
+       if i > 100
+       then force_x, force_y
+       else (
+       match others with
+       | other :: others ->
+       let diff_x = nodes.pos_x.(node) -. nodes.pos_x.(other) in
+       let diff_y = nodes.pos_y.(node) -. nodes.pos_y.(other) in
+       let diff_len = Float.sqrt ((diff_x *. diff_x) +. (diff_y *. diff_y)) in
+       let diff_len = if diff_len < 1.0 then 1.0 else diff_len in
+       let scale = (diff_len -. 100.0) /. diff_len /. 4000.0 in
+       let force_x = force_x +. (diff_x *. scale) in
+       let force_y = force_y +. (diff_y *. scale) in
+       iter (i + 1) force_x force_y others
+       | [] -> force_x, force_y)
+       in
+    *)
+    (*
+       let force_x, force_y =
+       iter 0 force_x force_y (Hashtbl.find_all sectors (get_sector nodes node))
+       in
+    *)
     (* Save forces for later. *)
     nodes.force_x.(node) <- force_x;
     nodes.force_y.(node) <- force_y;
     ());
+  iter_nodes nodes ~f:(fun node ->
+    nodes.vel_x.(node) <- (nodes.vel_x.(node) *. 0.95) +. nodes.force_x.(node);
+    nodes.vel_y.(node) <- (nodes.vel_y.(node) *. 0.95) +. nodes.force_y.(node);
+    nodes.pos_x.(node) <- nodes.pos_x.(node) +. nodes.vel_x.(node);
+    nodes.pos_y.(node) <- nodes.pos_y.(node) +. nodes.vel_y.(node));
   ()
 ;;
 
 let write_output (nodes : nodes) (edges : edges) : unit =
-  Printf.printf "{ nodes: [\n";
+  Printf.printf "{ \"nodes\": [\n";
   iter_nodes nodes ~f:(fun node ->
     let comma = if node = Array.length nodes.height - 1 then "" else "," in
-    Printf.printf "    { x: %f, y: %f }%s\n" nodes.pos_x.(node) nodes.pos_y.(node) comma);
+    Printf.printf
+      "    { \"x\": %f, \"y\": %f }%s\n"
+      nodes.pos_x.(node)
+      nodes.pos_y.(node)
+      comma);
   Printf.printf "  ],\n";
-  Printf.printf "  edges: [\n";
+  Printf.printf "  \"edges\": [\n";
   for i = 0 to Array.length edges.from - 1 do
     let comma = if i = Array.length edges.from - 1 then "" else "," in
-    Printf.printf "    { source: %d, target: %d }%s\n" edges.from.(i) edges.to_.(i) comma
+    Printf.printf
+      "    { \"source\": %d, \"target\": %d }%s\n"
+      edges.from.(i)
+      edges.to_.(i)
+      comma
   done;
   Printf.printf "  ]\n";
   Printf.printf "}\n";
@@ -244,7 +301,7 @@ let () =
     let edges = process_edges xml nodes in
     compute_heights nodes;
     position_near_parent nodes;
-    for _ = 0 to 1000 do
+    for _ = 0 to 10000 do
       run_simulation_frame nodes
     done;
     write_output nodes edges;
