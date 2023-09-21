@@ -80,7 +80,7 @@ let process_nodes xml : nodes =
     else index
   in
   let len = iter 0 in
-  Printf.printf "Found %d nodes\n" len;
+  Printf.eprintf "Found %d nodes\n" len;
   { indices
   ; height = Array.make len 0
   ; pos_x = Array.make len 0.0
@@ -134,7 +134,7 @@ let process_edges xml (nodes : nodes) : edges =
   iter ();
   let from = Array.of_list !from in
   let to_ = Array.of_list !to_ in
-  Printf.printf "Found %d edges\n" (Array.length from);
+  Printf.eprintf "Found %d edges\n" (Array.length from);
   { from; to_ }
 ;;
 
@@ -210,6 +210,22 @@ let run_simulation_frame (nodes : nodes) =
   ()
 ;;
 
+let write_output (nodes : nodes) (edges : edges) : unit =
+  Printf.printf "{ nodes: [\n";
+  iter_nodes nodes ~f:(fun node ->
+    let comma = if node = Array.length nodes.height - 1 then "" else "," in
+    Printf.printf "    { x: %f, y: %f }%s\n" nodes.pos_x.(node) nodes.pos_y.(node) comma);
+  Printf.printf "  ],\n";
+  Printf.printf "  edges: [\n";
+  for i = 0 to Array.length edges.from - 1 do
+    let comma = if i = Array.length edges.from - 1 then "" else "," in
+    Printf.printf "    { source: %d, target: %d }%s\n" edges.from.(i) edges.to_.(i) comma
+  done;
+  Printf.printf "  ]\n";
+  Printf.printf "}\n";
+  ()
+;;
+
 let () =
   let args = Sys.argv in
   if Array.length args <> 2
@@ -225,11 +241,12 @@ let () =
     open_tag xml "nodes";
     let nodes = process_nodes xml in
     open_tag xml "edges";
-    let _edges = process_edges xml nodes in
+    let edges = process_edges xml nodes in
     compute_heights nodes;
     position_near_parent nodes;
     for _ = 0 to 1000 do
       run_simulation_frame nodes
     done;
+    write_output nodes edges;
     ())
 ;;
